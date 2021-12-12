@@ -35,8 +35,6 @@ list_sbj={LIST_SBJ{2:15} LIST_SBJ{17:24}};
     %               param4 = param 6 of original model
     %                           learning rate of the model based and the model
 
-    %param_in ÀÌ°Ç ±³¼ö´Ô²²¼­ ¾Ë·ÁÁÖ½Å optimization ÇÔ¼ö ¾²±â.
-    % °¢ÀÚ¿¡ ´ëÇÑ°Ç ÀÌ°Ç ±×³É supplementary È®ÀÎÇØ¼­ ÇÏ´Â¼ö¹Û¿¡ ¾øÀ½.
     mode.param_BoundL = [0.3 0.01  0.1 0.1 0.01 0.01];
     mode.param_BoundU = [0.8 0.35 10 10 0.5 0.2];
     param_init= zeros(1,6);
@@ -50,14 +48,14 @@ list_sbj={LIST_SBJ{2:15} LIST_SBJ{17:24}};
     %% mode
     mode.param_length = 6 ;%size(param_init,2);
     mode.total_simul = 10; %30
-    mode.experience_sbj_events=[1 1]; % ones(1,2); % experience_sbj_events(2) = 1 ÀÏ¶§ subjectÀÇ state transitionÀ» ÀÌ¿ë.
-    mode.USE_FWDSARSA_ONLY=0; % ÀÌ°Ô 1ÀÌ¸é fwd only°í ÀÌ°Ô 2ÀÌ¸é sarsa only. µÑ´Ù ¾Æ´Ï°Ô ÇÏ·Á°í ÀÌ·± Á¤º¸¸¦ ³Ö¾úÁö¸¸ ¾Æ¿¹ ±× if¹®À» µÑ´Ù »©¹ö¸®´Â ¹æ¹ıµµ ÀÖÀ½.
-    mode.USE_BWDupdate_of_FWDmodel=1; % BWD update »ç¿ëÇÏ´Â ¹æ½ÄÀ¸·Î ÇĞ½ÀÇÏ±â·Î.
+    mode.experience_sbj_events=[1 1]; % ones(1,2); % experience_sbj_events(2) = 1 ì¼ë•Œ subjectì˜ state transitionì„ ì´ìš©.
+    mode.USE_FWDSARSA_ONLY=0; % ì´ê²Œ 1ì´ë©´ fwd onlyê³  ì´ê²Œ 2ì´ë©´ sarsa only. ë‘˜ë‹¤ ì•„ë‹ˆê²Œ í•˜ë ¤ê³  ì´ëŸ° ì •ë³´ë¥¼ ë„£ì—ˆì§€ë§Œ ì•„ì˜ˆ ê·¸ ifë¬¸ì„ ë‘˜ë‹¤ ë¹¼ë²„ë¦¬ëŠ” ë°©ë²•ë„ ìˆìŒ.
+    mode.USE_BWDupdate_of_FWDmodel=1; % BWD update ì‚¬ìš©í•˜ëŠ” ë°©ì‹ìœ¼ë¡œ í•™ìŠµí•˜ê¸°ë¡œ.
     mode.DEBUG_Q_VALUE_CHG=0;
     mode.simul_process_display=0;
     mode.out=1;
     mode.opt_ArbModel = 1; % % 1: naive model(m1_wgt) . 2: posterior model(posterior)
-    mode.boundary_12 = 0.1; % À§¾Æ·¡°Å ¹Ù²ğ¼öµµ ÀÖÀ½ »ç½Ç ¹¹°¡ ¸Â´ÂÁö ¸ğ¸£°ÙÀ½...
+    mode.boundary_12 = 0.1; 
     mode.boundary_21 = 0.01;
     mode.max_iter=200;
     maxd=MAXD;
@@ -66,7 +64,7 @@ list_sbj={LIST_SBJ{2:15} LIST_SBJ{17:24}};
     %% data_in
     % Load from list_sbj.
     maxi=size(list_sbj,2);% because it is for 1 subject. maxi=size(list_sbj,2);
-    data_in_tag{1,1}='data inÀÇ ¿­µéÀº subject ³Ñ¹ö. ±×¸®°í ±× ³»ºÎÀÇ HIST behavior info³»ºÎ´Â °¢°¢ ¼¼¼ÇÀ» ÀÇ¹Ì';
+    data_in_tag{1,1}='data inì˜ ì—´ë“¤ì€ subject ë„˜ë²„. ê·¸ë¦¬ê³  ê·¸ ë‚´ë¶€ì˜ HIST behavior infoë‚´ë¶€ëŠ” ê°ê° ì„¸ì…˜ì„ ì˜ë¯¸';
     % outputval={};
 
     % storing
