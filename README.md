@@ -64,10 +64,10 @@
  To investigate the eﬀect of one task variable (A) on another variable(B)'s representation, we performed another SD analysis, in which SVMs were trained in one condition of variable 'A' and tested in the other conditions of it to decode variable 'B'. The average test accuracy is called the CCGP score.
 
 ## References
-1. O'Doherty, J. P., Lee, S. W., & McNamee, D. The structure of reinforcement-learning mechanisms in the human brain, Current Opinion in Behavioral Sciences 1, 94-100 (2015).
-2. Lee, S. W., Shimojo, S., & O’Doherty, J. P. Neural computations underlying arbitration between model-based and model-free learning. Neuron, 81(3), 687-699 (2014).
-3. Rigotti, M., Barak, O., Warden, M. R., Wang, X. J., Daw, N. D., Miller, E. K., & Fusi, S. The importance of mixed selectivity in complex cognitive tasks. Nature, 497(7451), 585-590 (2013).
-4. Bernardi, S., Benna, M. K., Rigotti, M., Munuera, J., Fusi, S., & Salzman, C. D. The geometry of abstraction in the hippocampus and prefrontal cortex. Cell, 183(4), 954-967 (2020).
+[1] O'Doherty, J. P., Lee, S. W., & McNamee, D. The structure of reinforcement-learning mechanisms in the human brain, Current Opinion in Behavioral Sciences 1, 94-100 (2015).
+[2] Lee, S. W., Shimojo, S., & O’Doherty, J. P. Neural computations underlying arbitration between model-based and model-free learning. Neuron, 81(3), 687-699 (2014).
+[3] Rigotti, M., Barak, O., Warden, M. R., Wang, X. J., Daw, N. D., Miller, E. K., & Fusi, S. The importance of mixed selectivity in complex cognitive tasks. Nature, 497(7451), 585-590 (2013).
+[4] Bernardi, S., Benna, M. K., Rigotti, M., Munuera, J., Fusi, S., & Salzman, C. D. The geometry of abstraction in the hippocampus and prefrontal cortex. Cell, 183(4), 954-967 (2020).
 
 
 ## Data collection plan
