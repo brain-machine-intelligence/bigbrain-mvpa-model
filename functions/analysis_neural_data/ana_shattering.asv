@@ -1,0 +1,1462 @@
+
+function [] = ana_shattering(id)
+
+% Setting =================================================================
+
+% ===== Experiment =====
+Exp = 'Lee2014';  Exp_sfx = [];       prefix = 'wra*';
+
+
+% ===== ROI mask for multi-voxel pattern (MVP) =====
+
+% main ROI set
+ROI = {'F3TL', 'F3TR', 'V1L', 'V1R', 'HIPPOL', 'HIPPOR', 'VentStrL', 'VentStrR', 'DLPFCL', 'DLPFCR', 'OFC'}; 
+
+
+% ====================== labelling by task variable =======================
+% ----- task-relevant context mixing -----
+LABEL = {'Goal(6,7,8)xUC LOROV'}; N_allclass = 6 * ones(1, length(LABEL)); trialSelect = {[]};
+
+CClabel_name = [];
+categorize = [];  
+label_pairing = false;
+
+% to categorize continuous variables into several classes
+if isempty(categorize)
+    categorize = cell(1, length(LABEL));
+end
+% categorize = cell(1, length(LABEL));  % empty cell for no categorization
+% categorize = num2cell(2 * ones(1, length(LABEL)));
+% categorize = num2cell(3 * ones(1, length(LABEL)));
+% categorize = num2cell(N_allclass);
+
+% lab_shuffle = 1;
+lab_shuffle = 0;
+
+
+
+%% ========================= MVP setting =========================
+% prefix = 'wra*';  % preprocessing prefix
+% prefix = 'swar*';
+% prefix = 'swa*';
+% prefix = 'wa*';
+
+% SignalType = 'percent';
+SignalType = 'zscore'; % default setting
+
+ROI_types = {};
+% ROI_types = {'AAL3', 'AAL3'};
+% ROI_types = {'AAL3', 'AAL3', 'AICHAmc'};
+% ROI_types = {'sphere10', 'sphere10', ..., 
+%     'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3'};
+% ROI_types = {'sphere10', 'sphere10', 'AAL3', 'AAL3', ..., 
+%     'sphere10', 'sphere10', 'AAL3', 'AAL3'};
+% ROI_types = {'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3'};
+% ROI_types = {'AAL3', 'AAL3', 'AAL', 'AAL', 'AAL'}; % +DLPFC & R/L integrated OFC
+% ROI_types = {'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL3', 'AAL', 'AAL', 'AAL'}; % +DLPFC & R/L integrated OFC
+% roi_type = 'sphere5';
+% roi_type = 'sphere10';
+roi_type = 'AAL3';
+% roi_type = 'AAL';
+% roi_type = [];
+
+if ~isempty(roi_type)
+    switch roi_type
+        case 'AAL3'
+            MaskNum_map = containers.Map({'F3TL', 'F3TR', 'V1L', 'V1R', 'HIPPOL', 'HIPPOR', 'VentStrL', 'VentStrR'}, ...
+                [9       10     47     48      41         42        157        158]);
+        case 'AAL'
+            MaskNum_map = containers.Map({'DLPFCL', 'DLPFCR', 'OFCL', 'OFCR', 'OFC'}, ...
+                {7  8   [5 9 15 27]  [6 10 16 28]  [5 9 15 27 6 10 16 28]});
+    end
+else
+    MaskNum_map = containers.Map({'F3TL', 'F3TR', 'V1L', 'V1R', 'HIPPOL', 'HIPPOR', 'VentStrL', 'VentStrR', ...
+        'DLPFCL', 'DLPFCR', 'OFC'}, ...
+        {9       10     47     48      41         42        157        158  ...
+        7  8   [5 9 15 27 6 10 16 28]});
+end
+
+% EVENT = 5;
+% EVENT = 8;
+% EVENT = [-4 13];        % for test 201020
+% EVENT = {[1 2], [4 5], [7 8]};
+% EVENT = {[1 2 4 5 7 8]};
+% EVENT = [-1 0];                 % make-up run for F3TR S3
+% EVENT = [9 10];               % make-up run for F3TL & F3TR S3
+% EVENT = [1 2 4 5 7 8];        % mainly for 'strict' MVP
+% EVENT = [1 2 4 5 7 9 10];        
+EVENT = [1 2 4 5 7 8 9 10];        % main setting
+% EVENT = [-1 0 1 2 4 5 7 8 9 10];
+% EVENT = [7 8 9 10];     % make-up run for F3TL blkCond (slave1 too slow)
+% EVENT = -3:8;
+% EVENT = -3:12;
+% EVENT = 1:8;
+% EVENT = {[2 3], [5 6], 8};
+
+strict = 0;
+% strict = 1;
+interpolation = 0;
+
+
+
+% ========================= fitclinear setting =========================
+% Repeat = 1;    % # of undersample
+% Repeat = 20;    % # of undersample
+% Repeat = 50;    % # of undersample
+Repeat = 100;    % # of undersample
+
+% rRepeat = 10;
+rRepeat = 0;
+
+% Coding = 'onevsone';
+% Learners = 'svm';
+% KFold = 10;
+% KFold = 5;
+% KFold = 3;
+KFold = [];
+
+% CVtype = 'LOOV';
+CVtype = 'LOROV';
+% CVtype = '10foldCV';
+
+WeightSave = 0;
+% WeightSave = 1;
+
+% LOOV = 1;
+% LOOV = 0;
+
+alpha = 0.0001;
+
+
+% ========================= save setting =========================
+% save_path = 'C:\Users\User\Desktop\201020test\fitclinear_shattering';
+
+% save_path = 'C:\Users\User\Desktop\Research\Dimensionality_control_for_prefrontal_meta_RL\temp_results';
+% save_path = 'C:\Users\User\Desktop\Research\Dimensionality_control_for_prefrontal_meta_RL\temp_results\test';
+save_path = 'C:\Users\User\Desktop\Research\Dimensionality_control_for_prefrontal_meta_RL\temp_results\fitclinear_shattering';
+% save_path = 'C:\Users\User\Desktop\Research\Dimensionality_control_for_prefrontal_meta_RL\temp_results\N_vox effect verification';
+
+% save_path = '//143.248.30.72/Desktop\Research\Dimensionality_control_for_prefrontal_meta_RL\temp_results\fitclinear_shattering';
+
+% save_path = '\\143.248.30.94\bmlsamba\ydsung/A_Research/Dim_control_PFC_metaRL/results/fitclinear_shattering';
+% save_path = '\\143.248.30.94\bmlsamba\ydsung/A_Research/Dim_control_PFC_metaRL/results/fitclinear_shattering_vox_us';
+% save_path = '/home/ydsung/A_Research/Dim_control_PFC_metaRL/results/fitclinear_shattering';
+% save_path = '/home/ydsung/A_Research/Dim_control_PFC_metaRL/results/fitclinear_shattering_shuffle';
+
+if WeightSave
+    basic_name = 'fitclinear_weights';
+else
+    basic_name = 'fitclinear_accbox';
+end
+if ~isempty(CClabel_name)
+    save_name = [basic_name '_' CClabel_name 'CCGP' Exp_sfx];
+else
+    save_name = [basic_name Exp_sfx];
+end
+% save_name = ['fitclinear_CCGP' Exp_sfx CClabel_name];
+% save_name = 'fitclinear_accbox_percent';
+% save_name = 'fitclinear_accbox_strict';
+% save_name = 'fitclinear_accbox_Heo';
+% save_name = 'fitclinear_accbox_Kim';
+% save_name = 'fitclinear_accbox_Kim_wa';
+% save_name = 'fitclinear_accbox_Shin_swar';
+
+
+
+% main ====================================================================
+
+fprintf('%d ================================================================================================ \n', id)
+
+
+% #########################################################################
+% =========================== loop1: label load ===========================
+% #########################################################################
+
+labels = [];
+trial_select_sfx_cell = cell(1, length(LABEL));
+min_class_sizes = zeros(1, length(LABEL));
+
+for labi = 1:length(LABEL)
+    
+    var_name = erase(LABEL{labi}, ' shuff');
+    var_name = erase(var_name, ' LOROV');
+    var_name = erase(var_name, ' 5fold');
+    var_name = erase(var_name, ' paired');
+    
+    if contains(var_name, ' run')
+        runs_temp = var_name((strfind(var_name, ' run')+3):end);
+        runs = nan(1,length(runs_temp));
+        for i=1:length(runs); runs(i) = str2double(runs_temp(i)); end
+        session = arbMBMF_load_var(Exp, 'Session', id, []);
+        selector = 1 * ismember(session, runs);
+        var_name = erase(var_name, var_name(strfind(var_name, ' run'):end));
+        trial_select_sfx = [];
+    elseif ~isempty(trialSelect{labi})
+        selector = trialSelect{labi};
+        trial_select_sfx = [' ' trialSelect{labi}];
+        trial_select_sfx_cell{labi} = trial_select_sfx;
+    else
+        selector = [];
+        trial_select_sfx = [];
+    end
+    
+    % labelling by task variable
+    switch var_name
+        case 'Goal(6,7,8) OptHighFW5'
+            OptFW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptFW5, 2, 'Cutoff', 'mean')==1);
+        case 'Goal(6,7,8) OptLowFW5'
+            OptFW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptFW5, 2, 'Cutoff', 'mean')==0);
+        case 'Goal(6,7,8) OptHighBW5'
+            OptFW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', [4 0], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptFW5, 2, 'Cutoff', 'mean')==1);
+        case 'Goal(6,7,8) OptLowBW5'
+            OptFW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', [4 0], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptFW5, 2, 'Cutoff', 'mean')==0);
+        case 'Goal(6,7,8) OptHighW5'
+            OptW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptW5, 2)==1);
+        case 'Goal(6,7,8) OptLowW5'
+            OptW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(OptW5, 2)==0);
+            
+        case 'Goal(6,7,8) StabHighFW5'
+            StabW5 = arbMBMF_load_var(Exp, 'ChoConsist1n2', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(StabW5, 2, 'Cutoff', 'mean')==1);
+        case 'Goal(6,7,8) StabLowFW5'
+            StabW5 = arbMBMF_load_var(Exp, 'ChoConsist1n2', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(StabW5, 2, 'Cutoff', 'mean')==0);
+        case 'Goal(6,7,8) StabHighW5'
+            StabW5 = arbMBMF_load_var(Exp, 'ChoConsist1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(StabW5, 2)==1);
+        case 'Goal(6,7,8) StabLowW5'
+            StabW5 = arbMBMF_load_var(Exp, 'ChoConsist1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(StabW5, 2)==0);
+            
+        case 'Goal(6,7,8) FlexHighFW5'
+            FlexW5 = arbMBMF_load_var(Exp, 'ChoSwitch1n2(GoalSwitch)', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(FlexW5, 2, 'Cutoff', 'mean')==1);
+        case 'Goal(6,7,8) FlexLowFW5'
+            FlexW5 = arbMBMF_load_var(Exp, 'ChoSwitch1n2(GoalSwitch)', id, selector, ... 
+                'MovingMean', [0 4], 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(FlexW5, 2, 'Cutoff', 'mean')==0);
+        case 'Goal(6,7,8) FlexHighW5'
+            FlexW5 = arbMBMF_load_var(Exp, 'ChoSwitch1n2(GoalSwitch)', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(FlexW5, 2)==1);
+        case 'Goal(6,7,8) FlexLowW5'
+            FlexW5 = arbMBMF_load_var(Exp, 'ChoSwitch1n2(GoalSwitch)', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'Goal(6,7,8)', id, regr2class(FlexW5, 2)==0);
+            
+        case 'S3 OptHighW5'
+            OptW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'S3', id, regr2class(OptW5, 2)==1);
+        case 'S3 OptLowW5'
+            OptW5 = arbMBMF_load_var(Exp, 'ChoOptBinNaN1n2', id, selector, ... 
+                'MovingMean', 5, 'Mat2Row', 1);
+            label = arbMBMF_load_var(Exp, 'S3', id, regr2class(OptW5, 2)==0);
+        case 'GoalCond P1'
+            label = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=1) = nan; 
+        case 'GoalCond P2'
+            label = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=2) = nan;
+        case 'GoalCond P3'
+            label = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=3) = nan;
+        case 'UncCond P1'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, selector);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=1) = nan; 
+        case 'UncCond P2'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, selector);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=2) = nan;
+        case 'UncCond P3'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, selector);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=3) = nan;
+        case 'UncCond P2P3'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, selector);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase==1) = nan;
+        case 'UncCond G'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            GT = arbMBMF_load_var(Exp, 'GoalCond', id, []); label(GT~=1) = nan;
+        case 'UncCond H'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            GT = arbMBMF_load_var(Exp, 'GoalCond', id, []); label(GT~=2) = nan;
+        case 'UncCond binPMB_G0'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            PMB_G = arbMBMF_load_var(Exp, 'PMB_G', id, []);
+            binPMB_G = regr2class(PMB_G, 2);
+            label(binPMB_G~=0) = nan;
+        case 'UncCond binPMB_G1'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            PMB_G = arbMBMF_load_var(Exp, 'PMB_G', id, []);
+            binPMB_G = regr2class(PMB_G, 2);
+            label(binPMB_G~=1) = nan;
+        case 'UC hCX'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            CX = arbMBMF_load_var(Exp, 'CmplxCond', id, []); label(CX~=2) = nan;
+        case 'UC lCX'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            CX = arbMBMF_load_var(Exp, 'CmplxCond', id, []); label(CX~=1) = nan;
+        case 'UC binPMB0'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label(binPMB~=0) = nan;
+        case 'UC binPMB1'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label(binPMB~=1) = nan;
+        case 'UC binChoOpt0'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            binPMB = regr2class(ChoOpt, 2);
+            label(binPMB~=0) = nan;
+        case 'UC binChoOpt1'
+            label = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            binPMB = regr2class(ChoOpt, 2);
+            label(binPMB~=1) = nan;
+        case 'CmplxCond P1'
+            label = arbMBMF_load_var(Exp, 'CmplxCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=1) = nan; 
+        case 'CmplxCond P2'
+            label = arbMBMF_load_var(Exp, 'CmplxCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=2) = nan;
+        case 'CmplxCond P3'
+            label = arbMBMF_load_var(Exp, 'CmplxCond', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=3) = nan;
+        case 'CX hUC'
+            label = arbMBMF_load_var(Exp, 'CmplxCond', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []); label(UC~=2) = nan;
+        case 'CX lUC'
+            label = arbMBMF_load_var(Exp, 'CmplxCond', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []); label(UC~=1) = nan;
+        case 'Interaction'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            switch Exp
+                case {'Lee2014', 'Heo2018'}
+                    label(ismember(label,[1 3])) = 1;
+                    label(ismember(label,[2 4])) = 2;
+                case 'Kim2019'
+                    label(ismember(label,[1 4])) = 1;
+                    label(ismember(label,[2 3])) = 2;
+            end
+        case 'Interaction P1'
+            label = arbMBMF_load_var(Exp, 'Interaction', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=1) = nan; 
+        case 'Interaction P2'
+            label = arbMBMF_load_var(Exp, 'Interaction', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=2) = nan;
+        case 'Interaction P3'
+            label = arbMBMF_load_var(Exp, 'Interaction', id, []);
+            phase = class_series2phase_series(label, 'PhaseNumber', 3);
+            label(phase~=3) = nan;
+        case 'Unc ChoOpt 0'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);   
+            A1 = arbMBMF_load_var(Exp, 'A1', id, []);
+            ChoOpt_old = arbMBMF_load_var(Exp, 'ChoOpt_old', id, []);
+            label(ismember(label, [1 2]) | ChoOpt_old == 1 | A1 == 1) = nan;
+        case 'Unc ChoOpt 1'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);   
+            A1 = arbMBMF_load_var(Exp, 'A1', id, []);
+            ChoOpt_old = arbMBMF_load_var(Exp, 'ChoOpt_old', id, []);
+            label(ismember(label, [1 2]) | ChoOpt_old == 0 | A1 == 1) = nan;
+        case 'Unc in H'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);   
+            label(ismember(label, [1 2])) = nan;
+        case 'S3G(6,7,8)'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [6 7 8 9])); error('S3 error'); end
+            label(~ismember(blkCond, [1 2])) = nan;
+            label(label == 9) = nan;
+        case 'S2(4,5)'
+            label = arbMBMF_load_var(Exp, 'S2', id, selector);
+            % sanity check
+            if any(~ismember(unq_elms(label), 2:5)); error('(arbMBMF_shattering) S2 error'); end
+            label(ismember(label, [2, 3])) = nan;
+        case 'S2(2,3vs4,5)'
+            label = arbMBMF_load_var(Exp, 'S2', id, selector);
+            % sanity check
+            if any(~ismember(unq_elms(label), 2:5)); error('(arbMBMF_shattering) S2 error'); end
+            label = ismember(label, [4 5]) + 1; % 2&3: 1, 4&5: 2
+        case 'RG(10,20,40)'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'R', id, ismember(blkCond, [1 2]));
+            % sanity check
+            if any(~ismember(unq_elms(label), [0 10 20 40])); error('Reward error'); end
+            label(label==0) = nan;
+        case 'R(10,20,40)'
+            label = arbMBMF_load_var(Exp, 'R', id, selector);
+            % sanity check
+            if any(~ismember(unq_elms(label), [0 10 20 40])); error('Reward error'); end
+            label(label==0) = nan;
+        case 'S3 new'
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+        case 'R'
+            label = arbMBMF_load_var(Exp, 'R', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [0 10 20 40])); error('Reward error'); end
+        case 'Goal(6,7,8) uL'
+            label = arbMBMF_load_var(Exp, 'Goal', id, selector);
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, selector);    % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(label), [6 7 8 -1])); error('Goal error'); end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label(label == -1) = nan;
+            label(~ismember(uncc, 1)) = nan;
+        case 'Goal(6,7,8) uH'
+            label = arbMBMF_load_var(Exp, 'Goal', id, selector);
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, selector);    % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(label), [6 7 8 -1])); error('Goal error'); end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label(label == -1) = nan;
+            label(~ismember(uncc, 2)) = nan;
+        case 'Goal(6,7,8) binPMB_G0'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB_G = arbMBMF_load_var(Exp, 'PMB_G', id, []);
+            binPMB_G = regr2class(PMB_G, 2);
+            label(binPMB_G~=0) = nan;
+        case 'Goal(6,7,8) binPMB_G1'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB_G = arbMBMF_load_var(Exp, 'PMB_G', id, []);
+            binPMB_G = regr2class(PMB_G, 2);
+            label(binPMB_G~=1) = nan;   
+        case 'Goal(6.7.8) binChoOpt_G0'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            gt = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            opt_g = arbMBMF_load_var(Exp, 'ChoOpt', id, gt==1);
+            binopt_G = regr2class(opt_g, 2);
+            label(binopt_G~=0) = nan;
+        case 'Goal(6.7.8) binChoOpt_G1'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            gt = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            opt_g = arbMBMF_load_var(Exp, 'ChoOpt', id, gt==1);
+            binopt_G = regr2class(opt_g, 2);
+            label(binopt_G~=1) = nan;
+        case 'Goal(6,8) binChoOpt_G0'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            gt = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            opt_g = arbMBMF_load_var(Exp, 'ChoOpt', id, gt==1);
+            binopt_G = regr2class(opt_g, 2);
+            label(binopt_G~=0) = nan; label(label==7) = nan;
+        case 'Goal(6,8) binChoOpt_G1'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            gt = arbMBMF_load_var(Exp, 'GoalCond', id, []);
+            opt_g = arbMBMF_load_var(Exp, 'ChoOpt', id, gt==1);
+            binopt_G = regr2class(opt_g, 2);
+            label(binopt_G~=1) = nan; label(label==7) = nan;
+        case 'Goal uL'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, []);    % 1:low, 2:high
+            % sanity check
+            switch Exp
+                case {'Lee2014', 'Heo2018'}
+                    if any(~ismember(unq_elms(label), [6 7 8 -1])); error('Goal error'); end
+                case 'Kim2019'
+                    if any(~ismember(unq_elms(label), [1 2 3])); error('Goal error'); end
+            end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label(~ismember(uncc, 1)) = nan;
+        case 'Goal uH'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, []);    % 1:low, 2:high
+            % sanity check
+            switch Exp
+                case {'Lee2014', 'Heo2018'}
+                    if any(~ismember(unq_elms(label), [6 7 8 -1])); error('Goal error'); end
+                case 'Kim2019'
+                    if any(~ismember(unq_elms(label), [1 2 3])); error('Goal error'); end
+            end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label(~ismember(uncc, 2)) = nan;
+        case 'Goal cL'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            cmplx = arbMBMF_load_var(Exp, 'CmplxCond', id, []);    % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(cmplx), [1 2])); error('CmplxCond error'); end
+            label(~ismember(cmplx, 1)) = nan;
+        case 'Goal cH'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            cmplx = arbMBMF_load_var(Exp, 'CmplxCond', id, []);    % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(cmplx), [1 2])); error('CmplxCond error'); end
+            label(~ismember(cmplx, 2)) = nan;
+        case 'Goal binPMB0'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label(binPMB~=0) = nan;
+        case 'Goal binPMB1'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label(binPMB~=1) = nan;
+        case 'Goal binPMB1 uL'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); binPMB = regr2class(PMB, 2);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(binPMB~=1) = nan; label(UC~=1) = nan;
+        case 'Goal binPMB1 uH'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); binPMB = regr2class(PMB, 2);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(binPMB~=1) = nan; label(UC~=2) = nan;
+        case 'Goal uL cL'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(blk), 1:4)); error('blkCond error'); end
+            label(~ismember(blk, 1)) = nan;
+        case 'Goal uL cH'
+            label = arbMBMF_load_var(Exp, 'Goal', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(blk), 1:4)); error('blkCond error'); end
+            label(~ismember(blk, 2)) = nan;
+        case 'AchGoalS1RandA uL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS1RandA', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(UC~=1) = nan;
+        case 'AchGoalS1RandA uL cL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS1RandA', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(blk~=1) = nan;
+        case 'AchGoalS1RandA uL cH'
+            label = arbMBMF_load_var(Exp, 'AchGoalS1RandA', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(blk~=2) = nan;
+        case 'AchGoalS1OptA uL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS1OptA', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(UC~=1) = nan;
+        case 'AchGoalS2RandA uL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS2RandA', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(UC~=1) = nan;
+        case 'AchGoalS2RandA uL cL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS2RandA', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(blk~=1) = nan;
+        case 'AchGoalS2RandA uL cH'
+            label = arbMBMF_load_var(Exp, 'AchGoalS2RandA', id, []);
+            blk = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(blk~=2) = nan;
+        case 'AchGoalS2OptA uL'
+            label = arbMBMF_load_var(Exp, 'AchGoalS2OptA', id, []);
+            UC = arbMBMF_load_var(Exp, 'UncCond', id, []);
+            label(UC~=1) = nan;
+        case 'blkCond only goal 6,-1'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            Goal = arbMBMF_load_var(Exp, 'Goal', id, []);
+            label(~ismember(Goal, [6 -1])) = nan;
+        case 'blkCond in S3 7'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            S3 = arbMBMF_load_var(Exp, 'S3', id, []);
+            label(~ismember(S3, 7)) = nan;
+        case 'blkCond in S2 4'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            S2 = arbMBMF_load_var(Exp, 'S2', id, []);
+            label(~ismember(S2, 4)) = nan;
+        case 'blkCond in A2 right'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            A2 = arbMBMF_load_var(Exp, 'A2', id, []);
+            label(~ismember(A2, 2)) = nan;
+        case 'Goal(1,2,3) x Unc' % Kim2019 only
+            goal = arbMBMF_load_var(Exp, 'Goal', id, []);    % 1 2 3
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, []); % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(goal), [1 2 3])); error('Goal error'); end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label = NaN(1,length(goal)); pairs = [goal; uncc];
+            classmap = containers.Map({'1  1', '2  1', '3  1', ...
+                                       '1  2', '2  2', '3  2'}, ...
+                                       1:6);
+            for t=1:length(goal)
+                if ~isnan(goal(t))
+                    label(t) = classmap(num2str(pairs(:,t)'));
+                end
+            end
+        case 'Goal(6,7,8) x Unc'
+            goal = arbMBMF_load_var(Exp, 'Goal', id, []);    % 6 7 8 -1
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, []); % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(goal), [6 7 8 -1])); error('Goal error'); end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label = NaN(1,length(goal)); pairs = [goal; uncc];
+            classmap = containers.Map({'6  1', '7  1', '8  1', ...
+                                       '6  2', '7  2', '8  2'}, ...
+                                       1:6);
+            for t=1:length(goal)
+                if ~any(ismember(pairs(:,t)', -1))
+                    label(t) = classmap(num2str(pairs(:,t)'));
+                end
+            end
+        case 'Goal x Unc'
+            goal = arbMBMF_load_var(Exp, 'Goal', id, []);    % 6 7 8 -1
+            uncc = arbMBMF_load_var(Exp, 'UncCond', id, []); % 1:low, 2:high
+            % sanity check
+            if any(~ismember(unq_elms(goal), [6 7 8 -1])); error('Goal error'); end
+            if any(~ismember(unq_elms(uncc), [1 2])); error('UncCond error'); end
+            label = NaN(1,length(goal)); pairs = [goal; uncc];
+            classmap = containers.Map({'6  1', '7  1', '8  1', '-1  1', ...
+                                       '6  2', '7  2', '8  2', '-1  2'}, ...
+                                       1:8);
+            for t=1:length(goal)
+                label(t) = classmap(num2str(pairs(:,t)'));
+            end
+        case 'blkCond binChoOpt2 perC 0'
+            var2 = arbMBMF_load_var(Exp, 'blkCond', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2); if any(~ismember(var2set, [1 2 3 4])); error('err'); end
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan;
+        case 'blkCond binChoOpt2 perC 1'
+            var2 = arbMBMF_load_var(Exp, 'blkCond', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2); if any(~ismember(var2set, [1 2 3 4])); error('err'); end
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan;
+        case 'S3(6,7,9) binChoOpt2 perC 0'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan; label(var2==8) = nan; 
+        case 'S3(6,7,9) binChoOpt2 perC 1'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan; label(var2==8) = nan; 
+        case 'S3 binChoOpt2 perC 0'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan;
+        case 'S3 binChoOpt2 perC 1'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            ChoOpt2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []); ChoOpt2 = ChoOpt2(2,:);
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binChoOpt_temp = regr2class(ChoOpt2(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binChoOpt_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan;
+        case 'blkCond ChoCon 0'
+            strChoCon = arbMBMF_load_var(Exp, 'StrictChoCon', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []); label(strChoCon==1) = nan;
+        case 'blkCond ChoCon 1'
+            strChoCon = arbMBMF_load_var(Exp, 'StrictChoCon', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []); label(strChoCon==0) = nan;       
+        case 'currBlk blkchng'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; currBlk = nonzeros(Blk)';
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            % sanity check
+            if length(blkLens)~=length(currBlk); error('currBlk problem'); end
+            for i = 1:length(blkLens)
+                label(chng_idx(i)) = currBlk(i);
+            end
+        case 'currBlk blkchng+1T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; currBlk = nonzeros(Blk)';
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 2
+                    label(chng_idx(i)+1) = currBlk(i);
+                end
+            end
+        case 'currBlk blkchng+2T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; currBlk = nonzeros(Blk)';
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 3
+                    label(chng_idx(i)+2) = currBlk(i);
+                end
+            end
+        case 'currBlk blkchng+3T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; currBlk = nonzeros(Blk)';
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 4
+                    label(chng_idx(i)+3) = currBlk(i);
+                end
+            end
+        case 'currBlk blkchng+4T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; currBlk = nonzeros(Blk)';
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 5
+                    label(chng_idx(i)+4) = currBlk(i);
+                end
+            end
+        case 'prevBlk blkchng'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; prevBlk = [nan nonzeros(Blk)'];
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            % sanity check
+            if length(blkLens)+1~=length(prevBlk); error('prevBlk problem'); end
+            for i = 1:length(blkLens)
+                label(chng_idx(i)) = prevBlk(i);
+            end
+        case 'prevBlk blkchng+1T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; prevBlk = [nan nonzeros(Blk)'];
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 2
+                    label(chng_idx(i)+1) = prevBlk(i);
+                end
+            end
+        case 'prevBlk blkchng+2T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; prevBlk = [nan nonzeros(Blk)'];
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 3
+                    label(chng_idx(i)+2) = prevBlk(i);
+                end
+            end
+        case 'prevBlk blkchng+3T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; prevBlk = [nan nonzeros(Blk)'];
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 4
+                    label(chng_idx(i)+3) = prevBlk(i);
+                end
+            end
+        case 'prevBlk blkchng+4T'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = nan * ones(size(blkCond));
+            blkChange = [1 diff(blkCond)~=0];
+            Blk = blkCond .* blkChange; prevBlk = [nan nonzeros(Blk)'];
+            chng_idx = [find(blkChange) length(blkCond)];
+            blkLens = diff(chng_idx);
+            for i = 1:length(blkLens)
+                if blkLens(i) >= 5
+                    label(chng_idx(i)+4) = prevBlk(i);
+                end
+            end
+        case 'blkCond prevT'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(2:end) = label(1:end-1); label(1) = nan;
+        case 'blkCond nextT'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(1:end-1) = label(2:end); label(end) = nan;
+        case 'blkCond_sess1'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, session==1);
+        case 'blkCond_sess2'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, session==2);
+        case 'blkCond_sess3'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, session==3);
+        case 'blkCond_sess4'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, session==4);
+        case 'blkCond_sess5'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            label = arbMBMF_load_var(Exp, 'blkCond', id, session==5);
+            %         case 'GoalCond'
+            %             blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            %             label = ismember(blkCond, [1 2]);
+        case 'S3_blk1'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, blkCond==1);
+        case 'S3_blk2'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, blkCond==2);
+        case 'binRPE2 G'
+            label = regr2class(arbMBMF_load_var(Exp, 'RPE2', id, 'G'), 2);
+        case 'binRPE3 G'
+            label = regr2class(arbMBMF_load_var(Exp, 'RPE3', id, 'G'), 2);
+        case 'binSPE2 G'
+            label = regr2class(arbMBMF_load_var(Exp, 'SPE2', id, 'G'), 2);
+        case 'binSPE3 G'
+            label = regr2class(arbMBMF_load_var(Exp, 'SPE3', id, 'G'), 2);
+        case 'relComp2 G'
+            label = arbMBMF_load_var(Exp, 'relComp2', id, 'G');
+        case 'relComp3 G'
+            label = arbMBMF_load_var(Exp, 'relComp3', id, 'G');
+        case 'binRelMB'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMB', id, []), 2);
+        case 'binRelMB3lev'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMB', id, []), 3);
+            label(label == 2) = nan;
+        case 'binRelMF'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMF', id, []), 2);
+        case 'binRelMF3lev'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMF', id, []), 3);
+            label(label == 2) = nan;
+        case 'binRelMAX'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMAX', id, []), 2);            
+        case 'binRelMAX3lev'
+            label = regr2class(arbMBMF_load_var(Exp, 'relMAX', id, []), 3);
+            label(label == 2) = nan;
+        case 'binrelMB3xbinrelMF3'
+            relMB3 = arbMBMF_load_var(Exp, 'relMB3', id, []);
+            binrelMB3 = regr2class(relMB3, 2);
+            relMF3 = arbMBMF_load_var(Exp, 'relMF3', id, []);
+            binrelMF3 = regr2class(relMF3, 2);
+            label = bin_labels_combination([binrelMB3; binrelMF3]);
+        case 'binrelMAX3xrelComp3'
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, []);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, []);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3_sess1'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, session==1);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, session==1);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3_sess2'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, session==2);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, session==2);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3_sess3'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, session==3);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, session==3);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3_sess4'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, session==4);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, session==4);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3_sess5'
+            session = arbMBMF_load_var(Exp, 'Session', id, []);
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, session==5);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, session==5);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+        case 'binrelMAX3xrelComp3 early'
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, []);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, []);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+            label(ceil(length(label)/2):end) = nan;
+        case 'binrelMAX3xrelComp3 late'
+            relMAX3 = arbMBMF_load_var(Exp, 'relMAX3', id, []);
+            binrelMAX3 = regr2class(relMAX3, 2);
+            relComp3 = arbMBMF_load_var(Exp, 'relComp3', id, []);
+            label = bin_labels_combination([binrelMAX3; relComp3]);
+            label(1:floor(length(label)/2)) = nan;
+        case 'blkCond_binChoOpt0'
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            if length(ChoOpt)~=length(blkCond); error('error'); end
+            ChoOpt_blk1 = ChoOpt(ismember(blkCond, 1));
+            ChoOpt_blk2 = ChoOpt(ismember(blkCond, 2));
+            ChoOpt_blk3 = ChoOpt(ismember(blkCond, 3));
+            ChoOpt_blk4 = ChoOpt(ismember(blkCond, 4));
+            binChoOpt_blk1 = regr2class(ChoOpt_blk1, 2);
+            binChoOpt_blk2 = regr2class(ChoOpt_blk2, 2);
+            binChoOpt_blk3 = regr2class(ChoOpt_blk3, 2);
+            binChoOpt_blk4 = regr2class(ChoOpt_blk4, 2);
+            binChoOpt_perblkCond = nan * ones(size(ChoOpt));
+            binChoOpt_perblkCond(ismember(blkCond, 1)) = binChoOpt_blk1;
+            binChoOpt_perblkCond(ismember(blkCond, 2)) = binChoOpt_blk2;
+            binChoOpt_perblkCond(ismember(blkCond, 3)) = binChoOpt_blk3;
+            binChoOpt_perblkCond(ismember(blkCond, 4)) = binChoOpt_blk4;
+            label = blkCond;
+            label(binChoOpt_perblkCond==1) = nan;
+        case 'blkCond_binChoOpt1'
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            if length(ChoOpt)~=length(blkCond); error('error'); end
+            ChoOpt_blk1 = ChoOpt(ismember(blkCond, 1));
+            ChoOpt_blk2 = ChoOpt(ismember(blkCond, 2));
+            ChoOpt_blk3 = ChoOpt(ismember(blkCond, 3));
+            ChoOpt_blk4 = ChoOpt(ismember(blkCond, 4));
+            binChoOpt_blk1 = regr2class(ChoOpt_blk1, 2);
+            binChoOpt_blk2 = regr2class(ChoOpt_blk2, 2);
+            binChoOpt_blk3 = regr2class(ChoOpt_blk3, 2);
+            binChoOpt_blk4 = regr2class(ChoOpt_blk4, 2);
+            binChoOpt_perblkCond = nan * ones(size(ChoOpt));
+            binChoOpt_perblkCond(ismember(blkCond, 1)) = binChoOpt_blk1;
+            binChoOpt_perblkCond(ismember(blkCond, 2)) = binChoOpt_blk2;
+            binChoOpt_perblkCond(ismember(blkCond, 3)) = binChoOpt_blk3;
+            binChoOpt_perblkCond(ismember(blkCond, 4)) = binChoOpt_blk4;
+            label = blkCond;
+            label(binChoOpt_perblkCond==0) = nan;
+        case 'S3(6,7,9)_binChoOpt2_0'
+            ChoOpt1n2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []);
+            binChoOpt2 = regr2class(ChoOpt1n2(2,:), 2);
+            S3_679 = arbMBMF_load_var(Exp, 'S3', id, []);
+            S3_679(S3_679==8) = nan;
+            label = S3_679; label(binChoOpt2==1) = nan;
+        case 'S3(6,7,9)_binChoOpt2_1'
+            ChoOpt1n2 = arbMBMF_load_var(Exp, 'ChoOpt1n2', id, []);
+            binChoOpt2 = regr2class(ChoOpt1n2(2,:), 2);
+            S3_679 = arbMBMF_load_var(Exp, 'S3', id, []);
+            S3_679(S3_679==8) = nan;
+            label = S3_679; label(binChoOpt2==0) = nan;
+        case 'S3(6,7,9)_binChoOpt_0'
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            binChoOpt = regr2class(ChoOpt, 2);
+            S3_679 = arbMBMF_load_var(Exp, 'S3', id, []);
+            S3_679(S3_679==8) = nan;
+            label = S3_679; label(binChoOpt==1) = nan;
+        case 'S3(6,7,9)_binChoOpt_1'
+            ChoOpt = arbMBMF_load_var(Exp, 'ChoOpt', id, []);
+            binChoOpt = regr2class(ChoOpt, 2);
+            S3_679 = arbMBMF_load_var(Exp, 'S3', id, []);
+            S3_679(S3_679==8) = nan;
+            label = S3_679; label(binChoOpt==0) = nan;
+        case 'blkCond_binrelMAX_0'
+            relMAX = arbMBMF_load_var(Exp, 'relMAX', id, []);
+            binrelMAX = regr2class(relMAX, 2);
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = blkCond; label(binrelMAX==1) = nan;
+        case 'blkCond_binrelMAX_1'
+            relMAX = arbMBMF_load_var(Exp, 'relMAX', id, []);
+            binrelMAX = regr2class(relMAX, 2);
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = blkCond; label(binrelMAX==0) = nan;
+        case 'S3(6,7,9)'
+            label = arbMBMF_load_var(Exp, 'S3', id, selector);
+            label(label==8) = nan;
+        case 'S3(6,7,9)_G'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [1 2]));
+            label(label==8) = nan;
+        case 'S3(6,7,9)_H'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [3 4]));
+            label(label==8) = nan;
+        case 'S3(6,7,9)_G new'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [1 2]));
+            label(label==8) = nan;
+        case 'S3(6,7,9)_H new'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [3 4]));
+            label(label==8) = nan;
+        case 'S(6,7,9)_G uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, 2));
+            label(label==8) = nan;
+        case 'S(6,7,9)_H uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, 3));
+            label(label==8) = nan;
+        case 'R(0,20,40)_G'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'R', id, ismember(blkCond, [1 2]));
+            label(label==10) = nan;
+        case 'R(0,20,40)_H'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'R', id, ismember(blkCond, [3 4]));
+            label(label==10) = nan;
+        case 'R(0,20,40)_G uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'R', id, ismember(blkCond, 2));
+            label(label==10) = nan;
+        case 'R(0,20,40)_H uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []); 
+            label = arbMBMF_load_var(Exp, 'R', id, ismember(blkCond, 3));
+            label(label==10) = nan;
+        case 'S3(6,7,9)_uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [2 3]));
+            label(label==8) = nan;
+        case 'S3(6,7,8)'
+            label = arbMBMF_load_var(Exp, 'S3', id, selector);
+            label(label==9) = nan;
+        case 'S3(6,7,8)_uL'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, ismember(blkCond, [1 4]));
+            label(label==9) = nan;
+        case 'S3G(6,7,8)_uL'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, blkCond==1);
+            label(label==9) = nan;
+        case 'S3G(6,7,8)_uH'
+            blkCond = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label = arbMBMF_load_var(Exp, 'S3', id, blkCond==2);
+            label(label==9) = nan;
+        case 'S3 early'
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            label(ceil(length(label)/2):end) = nan;
+        case 'S3 late'
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            label(1:floor(length(label)/2)) = nan;
+        case 'blkCond early'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(ceil(length(label)/2):end) = nan;
+        case 'blkCond late'
+            label = arbMBMF_load_var(Exp, 'blkCond', id, []);
+            label(1:floor(length(label)/2)) = nan;
+        case 'S3(6,7,9) binPMB 0'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [6 7 8 9])); error('S3 error'); end
+            label(label == 8) = nan; label(binPMB==1) = nan;
+        case 'S3(6,7,9) binPMB 1'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [6 7 8 9])); error('S3 error'); end
+            label(label == 8) = nan; label(binPMB==0) = nan;
+        case 'S3(6,7,9) binPMB perC 0'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan; label(var2==8) = nan; 
+        case 'S3(6,7,9) binPMB perC 1'
+            var2 = arbMBMF_load_var(Exp, 'S3', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan; label(var2==8) = nan; 
+        case 'R binPMB perC 0'
+            var2 = arbMBMF_load_var(Exp, 'R', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan; 
+        case 'R binPMB perC 1'
+            var2 = arbMBMF_load_var(Exp, 'R', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan; 
+        case 'R(0,20,40) binPMB 0'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'R', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [0 10 20 40])); error('R error'); end
+            label(label == 10) = nan; label(binPMB==1) = nan;
+        case 'R(0,20,40) binPMB 1'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'R', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), [0 10 20 40])); error('R error'); end
+            label(label == 10) = nan; label(binPMB==0) = nan;
+        case 'R(0,20,40) binPMB perC 0'
+            var2 = arbMBMF_load_var(Exp, 'R', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==1) = nan; label(var2==10) = nan; 
+        case 'R(0,20,40) binPMB perC 1'
+            var2 = arbMBMF_load_var(Exp, 'R', id, []); var1 = zeros(size(var2));
+            var2set = unq_elms(var2);
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []); 
+            for i = 1:length(var2set)
+                temp_v2_idx = find(var2 == var2set(i));
+                binPMB_temp = regr2class(PMB(temp_v2_idx), 2);
+                temp_opt_idx = temp_v2_idx(binPMB_temp==1);
+                var1(temp_opt_idx) = 1;
+            end
+            label = var2; label(var1==0) = nan; label(var2==10) = nan; 
+        case 'Coin(1,2,3) binPMB 0'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'Coin', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), 1:4)); error('Coin error'); end
+            label(label == 4) = nan; label(binPMB==1) = nan;
+        case 'Coin(1,2,3) binPMB 1'
+            PMB = arbMBMF_load_var(Exp, 'PMB', id, []);
+            binPMB = regr2class(PMB, 2);
+            label = arbMBMF_load_var(Exp, 'Coin', id, []);
+            % sanity check
+            if any(~ismember(unq_elms(label), 1:4)); error('Coin error'); end
+            label(label == 4) = nan; label(binPMB==0) = nan;
+        case 'S3(6,7,9) binQarb2 0'
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            Qarb2 = arbMBMF_load_var(Exp, 'Qarb2', id, []);
+            binQarb2 = regr2class(Qarb2, 2);
+            label(label == 8) = nan; label(binQarb2 == 1) = nan;
+        case 'S3(6,7,9) binQarb2 1'
+            label = arbMBMF_load_var(Exp, 'S3', id, []);
+            Qarb2 = arbMBMF_load_var(Exp, 'Qarb2', id, []);
+            binQarb2 = regr2class(Qarb2, 2);
+            label(label == 8) = nan; label(binQarb2 == 0) = nan;            
+        otherwise
+            label = arbMBMF_load_var(Exp, var_name, id, selector);
+    end
+        
+    if lab_shuffle || contains(LABEL{labi}, 'shuff')
+        valid_lab_idx = ~isnan(label);
+        valid_lab_shuffled = label(valid_lab_idx);
+        valid_lab_shuffled = valid_lab_shuffled(randperm(length(valid_lab_shuffled)));
+        label(valid_lab_idx) = valid_lab_shuffled;
+    end
+    
+    if ~isempty(categorize{labi})
+        label = regr2class(label, categorize{labi});
+    end
+    
+    labels = [labels; label];
+    [~, class_sizes] = unq_elms(label);
+    min_class_sizes(labi) = min(class_sizes);
+    
+end % labi
+
+% Determining the smallest class size for undersampling
+if label_pairing
+    
+    if contains(CVtype, 'LOROV')
+        N_session = unq_elms(arbMBMF_load_var(Exp, 'Session', id, []));
+        min_class_size_ratio = (N_session - 1) / N_session;
+    else
+        min_class_size_ratio = 1;
+    end
+    
+    min_class_size = ceil(min(min_class_sizes) * min_class_size_ratio);
+else
+    min_class_size = [];
+end
+
+% For CCGP: cross-condition labeling for each trial
+if ~isempty(CClabel_name)
+    CClabel = arbMBMF_load_var(Exp, CClabel_name, id, []);
+else 
+    CClabel = [];
+end
+
+% #########################################################################
+% ============== loop2: decoding label for each ROI & event ===============
+% #########################################################################
+
+for roii = 1:length(ROI)
+    roi = ROI{roii};
+    fprintf([roi ' ============================================= \n'])
+    
+    if ~isempty(ROI_types)
+        roi_type = ROI_types{roii};
+    end
+    
+    if contains(roi, 'us')  % for voxel undersampling analysis
+        k = strfind(roi, 'us');
+        % temp_roi_name = roi(1:k-numel(num2str(seed_us))-1);
+        temp_roi_name = roi(1:k-numel(anaAxis)-1);
+        % roi(1:k-numel(num2str(seed_us))-1): roi_name
+        % roi(k+2): underset id
+        % sub_vox: voxel index subsets
+        MVPfull = arbMBMF_boldpat(Exp, temp_roi_name, id, ... % 3D (N_voxel x N_event x N_trial)
+            'SignalType', SignalType, ...
+            'roi_type', roi_type, ...
+            'MaskNum', MaskNum_map(temp_roi_name), ...
+            'Event', EVENT, ...
+            'strict', strict, ...
+            'interpolation', interpolation, ...
+            'prefix', prefix);
+        MVPfull = MVPfull(sub_vox{str2double(roi(k+2:end))},:,:);
+%         disp(sub_vox{str2double(roi(k+2))})
+        fprintf('%d ', sub_vox{str2double(roi(k+2:end))})
+        disp(' ')
+    else
+        switch roi
+            case 'ilPFC'
+                % multi-voxel pattern MVP: [N_voxel x N_event x N_trial]
+                lilPFC = arbMBMF_boldpat(Exp, 'lilPFC', id, ...
+                    'SignalType', SignalType, ...
+                    'roi_type', roi_type, ...
+                    'Event', EVENT, ...
+                    'strict', strict, ...
+                    'interpolation', interpolation);
+                rilPFC = arbMBMF_boldpat(Exp, 'rilPFC', id, ...
+                    'SignalType', SignalType, ...
+                    'roi_type', roi_type, ...
+                    'Event', EVENT, ...
+                    'strict', strict, ...
+                    'interpolation', interpolation);
+                MVPfull = cat(1, lilPFC, rilPFC);
+                
+            case 'V1'
+                lV1 = arbMBMF_boldpat(Exp, 'lV1', id, ...
+                    'SignalType', SignalType, ...
+                    'roi_type', roi_type, ...
+                    'Event', EVENT, ...
+                    'strict', strict, ...
+                    'interpolation', interpolation);
+                rV1 = arbMBMF_boldpat(Exp, 'rV1', id, ...
+                    'SignalType', SignalType, ...
+                    'roi_type', roi_type, ...
+                    'Event', EVENT, ...
+                    'strict', strict, ...
+                    'interpolation', interpolation);
+                MVPfull = cat(1, lV1, rV1);
+                
+            otherwise
+                % multi-voxel pattern MVP: [N_voxel x N_event x N_trial]
+                MVPfull = arbMBMF_boldpat(Exp, roi, id, ... 
+                    'SignalType', SignalType, ...
+                    'roi_type', roi_type, ...
+                    'MaskNum', MaskNum_map(roi), ...
+                    'Event', EVENT, ...
+                    'strict', strict, ...
+                    'interpolation', interpolation, ...
+                    'prefix', prefix);
+        end
+    end
+        
+    for labi = 1:length(LABEL)
+        
+        fprintf([LABEL{labi} ' ================ \n'])
+        
+        % loaded label
+        label = labels(labi, :);
+        
+        for evi = 1:length(EVENT)
+            
+            % event specific MVP
+            if ndims(MVPfull) > 2
+                MVP = squeeze(MVPfull(:,evi,:));
+            else
+                MVP = MVPfull;
+            end
+            % event name for saving
+            if iscell(EVENT)
+                ev_name = EVENT{evi};
+            else
+                ev_name = EVENT(evi);
+            end
+            
+            % sanity check
+            trial_len = size(label, 2);
+            if size(MVP,2)~=trial_len
+                disp('label-pattern size unmatch'); 
+                continue
+            end
+            unqSet = unq_elms(label);
+            if length(unqSet)~=N_allclass(labi) 
+                disp('(arbMBMF_shattering) label element error'); 
+                continue
+            end
+            
+            % linear shattering
+            fprintf('%d ', id)
+            if isempty(KFold)
+                acc_box = linear_shattering(MVP, label, ...
+                    'Exp', Exp, ...
+                    'ID', id, ...
+                    'CVtype', CVtype, ...
+                    'CClabel', CClabel, ...
+                    'Repeat', Repeat, ...
+                    'rRepeat', rRepeat, ...
+                    'MinimalClassSize', min_class_size, ...
+                    'WeightSave', WeightSave, ...
+                    'Alpha', alpha, ...
+                    'AllClassOnly', 1, ...
+                    'verbose', 1);
+            else
+                acc_box = linear_shattering(MVP, label, ...
+                    'Kfold', KFold, ...
+                    'CClabel', CClabel, ...
+                    'Repeat', Repeat, ...
+                    'rRepeat', rRepeat, ...
+                    'MinimalClassSize', min_class_size, ...
+                    'WeightSave', WeightSave, ...
+                    'Alpha', alpha, ...
+                    'AllClassOnly', 1, ...
+                    'verbose', 1);
+            end 
+            
+            % running information
+            run_info.Exp = Exp;
+            run_info.ROI = ROI;
+            run_info.LABEL = LABEL;
+            run_info.N_allclass = N_allclass;
+            run_info.label_pairing = label_pairing;
+            run_info.categorize = categorize;
+            run_info.lab_shuffle = lab_shuffle;
+            run_info.MVP_setting.SignalType = SignalType;
+            run_info.MVP_setting.roi_type = roi_type;
+            run_info.MVP_setting.EVENT = EVENT;
+            run_info.MVP_setting.strict = strict;
+            run_info.MVP_setting.interpolation = interpolation;
+            run_info.MVP_setting.prefix = prefix;
+            run_info.stat_setting.Repeat = Repeat;
+            run_info.stat_setting.rRepeat = rRepeat;
+            run_info.stat_setting.CVtype = CVtype;
+            run_info.stat_setting.KFold = KFold;
+            run_info.stat_setting.WeightSave = WeightSave;
+            run_info.stat_setting.Alpha = alpha;
+%             run_info.fitcecoc_setting.Coding = Coding;
+%             run_info.fitcecoc_setting.Learners = Learners;
+%             run_info.fitcecoc_setting.LOOV = LOOV;
+                        
+            % save information
+            save_info.id = id;
+            save_info.roi = ROI{roii};
+            save_info.roi_type = roi_type;
+            save_info.label_name = LABEL{labi};
+            save_info.label_true = label;
+            save_info.trialSelect = trialSelect{labi};
+            save_info.event = ev_name;
+            save_info.save_path = save_path;
+            save_info.save_name = save_name;
+            save_info.acc_box = acc_box;             
+            
+            % save
+            save_dir = [save_path '/' roi_type '/' ROI{roii} '/' , ...
+                LABEL{labi} trial_select_sfx_cell{labi} '/' num2str(ev_name) '/'];
+            
+%             % Rename saved file names (2023-03-30) - run one arbitrary sbj, then change all sbjs
+%             file_list = dir([save_dir, '*.mat']);
+%             for i = 1:length(file_list)
+%                 old_name = file_list(i).name;
+%                 % Find the numbers in the filename using regular Expressions
+%                 numbers = regExp(old_name, '\d+', 'match');
+%                 % Check if there are any numbers in the filename
+%                 if ~isempty(numbers)
+%                     % Get the first number in the filename
+%                     number = numbers{1};
+%                     % Change the filename using the number
+%                     new_name = [save_name, number, '.mat'];
+%                     % Rename the file
+%                     movefile([save_dir, old_name], [save_dir, new_name]);
+%                 end
+%             end
+            
+            try
+                save([save_dir, ...
+                    save_name num2str(id) '.mat'], ...
+                    'run_info', 'save_info')
+                
+            catch
+                mkdir(save_dir)
+                save([save_dir, ...
+                    save_name num2str(id) '.mat'], ...
+                    'run_info', 'save_info')
+            end
+            
+            disp([save_dir, save_name num2str(id) ' saved'])
+            
+        end % evi
+        
+    end % labi
+    
+end % roii
+
