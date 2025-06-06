@@ -13,7 +13,7 @@
 
 ## Compatibility
 All MATLAB scripts have been verified to run on **MATLAB 2023a** and **MATLAB 2024a**.
-
+Installing MATLAB, downloading the `data` folder from the OSF repository and the neural-analysis libraries (the `packages` folder required for neural analysis code execution) will, in total, require several hours. Note that the multi-voxel pattern data folder, `data/subj_masked_EPI`, expands to approximately 43 GB, which can be downloaded via `data_download_scripts/epi_download.sh`.
 
 
 
@@ -28,6 +28,14 @@ All MATLAB scripts have been verified to run on **MATLAB 2023a** and **MATLAB 20
 | **functions/utils/** | Miscellaneous helper utilities. |
 | **packages/** | External toolboxes required for the fMRI analyses:<br>  • *princeton-mvpa-toolbox* <br>  • *SPM12* |
 
+Replication of the paper’s figures with the demo scripts (`demo/vis_*.m`) requires local availability of the OSF-hosted `data` directory, including its sub-folders (`data/human_behavior`, `data/mb_virtual_episode1000`, `data/mf_virtual_episode1000`, `data/decoding_result`, `data/shattering_result`, `data/ccgp_result`).
+
+The analytical demo scripts—`demo/run_neural_analysis.m` and `demo/run_simulation.m`—also reference these paths (see the code). During execution,
+- `run_neural_analysis.m` creates the result directories (`decoding_result`, `shattering_result`, and `ccgp_result`) and writes the corresponding output files;    
+- `run_simulation.m` creates `mb_virtual_episode1000` and `mf_virtual_episode1000` and stores the simulation outputs therein.
+These directories, containing the original results, are already present in the distributed `data` folder.
+
+Computational demands are substantial: both the simulation and neural analysis demo requires several days on a standard workstation. We therefore recommend executing the codes for each participant in parallel on a computing cluster whenever possible. Execution of the neural analysis codes requires the `packages` folder downloaded and appended to the MATLAB search path.
 
 
 ## Simulation & model fitting
